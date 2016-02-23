@@ -17,9 +17,6 @@ namespace HM\Import {
  * Version: 2
  */
 
-// Exit if accessed directly
-defined( 'ABSPATH' ) || exit;
-
 
 /**
  * Commands to fix things within Post content, usually post-import.
