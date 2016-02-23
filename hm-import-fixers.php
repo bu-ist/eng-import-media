@@ -401,7 +401,8 @@ class Fixers extends \WP_CLI_Command {
 		// Find links with any href value (that wrap images with a blank src).
 		foreach ( $xpath->query( '//a[@href]/img[@src=""]/..' ) as $anchor_element ) {
 			$image_url = $anchor_element->getAttribute( 'href' );
-			$mime_type = wp_check_filetype( $image_url )['type'];
+			$mime_temp = wp_check_filetype( $image_url );
+			$mime_type = $mime_temp['type'];
 
 			if ( ! $mime_type || strpos( $mime_type, 'image/' ) === false ) {
 				continue;
