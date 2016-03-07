@@ -136,6 +136,45 @@ class MediaFix extends \HM\Import\Fixers {
 	}
 
 	/**
+	 * Scan all img tags and report back the scr attribute of all internal img, with a status of whether or not they are valid urls for existing library media
+	 *
+	 *
+	 * @alias img-report
+	 *
+	 */
+	public function img_report($args_assoc) {
+		//setup post paging loop
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+		);
+
+		//setup a table to return the data
+		$output = new \cli\Table();
+		$output->setHeaders(array('post_id','src_url','status'));
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+
+			foreach ($posts as $post) {
+				//run scanner
+				$these_rows = self::get_relative_imgs($post);
+				if ($these_rows) {
+					foreach ($these_rows as $row) {$output->addRow($row);}
+				}
+			}
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		//return data as a text table to the console, or a tab delimited text file if sent to a file
+		$output->display();
+	}
+
+
+
+	/**
 	 * Helper/internal functions.
 	 */
 
@@ -267,6 +306,40 @@ class MediaFix extends \HM\Import\Fixers {
 		add_post_meta($importedID, "_original_imported_src", $media_path);
 		return $importedID;
 	}
+
+
+	/**
+	 * gets all of the img tags with relative src attributes from a post
+	 *
+	 * @param post $post
+	 * @return string Returns the rewritten post text
+	 */
+	protected static function get_relative_imgs($post) {
+		//setup dom document
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $post->post_content . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
+
+		$xpath = new \DOMXPath( $dom );
+
+		$rows = array();
+
+		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
+			$img_url = $img_element->getAttribute( 'src' );
+			
+			$url_exists = self::get_attachment_from_src($img_url);
+			if($url_exists) {$status = "exists";} else {$status = "missing";}
+
+			$row = array($post->ID, $img_url, $status);
+			$rows[] = $row;
+		}
+		return $rows;
+	}
+
+
+
 
 	/**
 	 * Returns the current host with scheme as a default host for media imports
