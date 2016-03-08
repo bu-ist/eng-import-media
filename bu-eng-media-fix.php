@@ -121,6 +121,64 @@ class MediaFix extends \HM\Import\Fixers {
 	}
 
 
+	/**
+	 * Import and relink a href media for a single post
+	 *
+	 * ## OPTIONS
+	 *
+	 * <command>
+ 	 * : The command to run.
+ 	 *
+ 	 * [<subcommand>]
+  	 * : The subcommand to run.
+  	 *
+	 * [--import-host]
+	 * : If importing media from a host other than the current one, set it here (with protocol)
+	 *
+	 * @alias process-post-a-href
+	 *
+	 * @param array $args Positional args.
+	 * @param array $args Assocative args.
+	 */
+	public function process_post_a_href( $args, $args_assoc ) {
+		//disable thumbnail generation
+		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
+
+		$post = get_post($args[0]);
+		if(!$post) {\WP_CLI::error("Post not found");}
+
+		//set the import host from flag, or default to the current host
+		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
+		if(!$import_host) {$import_host = self::default_host();}
+
+
+		$text = $post->post_content;
+
+		$new_text = self::process_a_hrefs($text,$post,$import_host);
+		
+		if ( $new_text === $text ) {
+			\WP_CLI::log( sprintf("\tPost %d unchanged", $post->ID) );
+			return;
+		}
+
+		// Update post.
+		$result = wp_update_post( array(
+			'ID'           => $post->ID,
+			'post_content' => $new_text,
+		), true );
+
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::log( sprintf(
+				"\t[#%d] Failed rewriting post links: %s",
+				$post->ID,
+				$result->get_error_message()
+			) );
+		} else {
+			\WP_CLI::log( sprintf("\tPost %d updated.", $post->ID) );
+		}
+	}
+
+
 
 	/**
 	 * Iterate over every post, processing the attached media and re-writing the links in the post
@@ -266,6 +324,79 @@ class MediaFix extends \HM\Import\Fixers {
 		libxml_clear_errors();
 		libxml_use_internal_errors( false );
 	}
+
+	/**
+	 * Iterate over every post, processing the img tags and re-writing the links in the post
+	 *
+	 *
+	 * [--import-host]
+	 * : If importing media from a host other than the current one, set it here (with protocol)
+	 *
+	 * @alias fix-all-a-href
+	 *
+	 */
+	public function fix_all_a_href($args_assoc) {
+		//disable thumbnail generation
+		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
+
+		//set the import host from flag, or default to the current host
+		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
+		if(!$import_host) {$import_host = self::default_host();}
+
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+		);
+
+		if ( ! current_user_can( 'import' ) ) {
+			\WP_CLI::error( "You must run this command with a --user specified (site admin or network admin)." );
+			exit;
+		}
+
+		\WP_CLI::log( PHP_EOL . 'WARNING: Not extensively tested with non-UTF8.' );
+		\WP_CLI::log( 'WARNING: DOMDocument is likely to make small changes to any HTML as part of its processing.' . PHP_EOL );
+		libxml_use_internal_errors( true );
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+			\WP_CLI::log( "\nSearching posts..." );
+
+			foreach ( $posts as $post ) {
+				$text = $post->post_content;
+				//scan the post text, import media, and get back the re-written post text
+				$new_text = self::process_a_hrefs($text, $post, $import_host);
+
+				if ( $new_text === $text ) {
+					\WP_CLI::log( sprintf("\tPost %d unchanged", $post->ID) );
+					continue;
+				}
+
+				// Update post.
+				$result = wp_update_post( array(
+					'ID'           => $post->ID,
+					'post_content' => $new_text,
+				), true );
+
+				if ( is_wp_error( $result ) ) {
+					\WP_CLI::log( sprintf(
+						"\t[#%d] Failed rewriting post links: %s",
+						$post->ID,
+						$result->get_error_message()
+					) );
+				} else {
+					\WP_CLI::log( sprintf("\tPost %d updated.", $post->ID) );
+				}
+
+			} //end foreach
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		libxml_clear_errors();
+		libxml_use_internal_errors( false );
+	}
+
 
 
 	/**
@@ -541,7 +672,65 @@ class MediaFix extends \HM\Import\Fixers {
 		return trim( $text );
 	}
 
+	/**
+	 * Scans the post text for a href linked media to import.  For each media file, it imports the media to the local library and rewrites the links in the post
+	 * Also records the original media path in a postmeta record.
+	 *
+	 * @param string $text
+	 * @param post $post
+	 * @param string import_host
+	 * @return string Returns the rewritten post text
+	 */
+	protected static function process_a_hrefs( $text, $post, $import_host ) {
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $text . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
 
+		$xpath = new \DOMXPath( $dom );
+		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		foreach ( $xpath->query( '//a[contains(@href,"/files/")][not(starts-with(@href,"http"))]' ) as $anchor_element ) {
+
+			$file_url = $anchor_element->getAttribute('href');
+
+			//check to see if the file is already in the library
+			$hrefExists = self::get_attachment_from_src($file_url);
+
+			if ($hrefExists) {
+				\WP_CLI::log( sprintf("Scanned existing href, skipping %s", $file_url) );
+				continue;
+			}
+
+			//check to see if the file was imported on a previous run
+			global $wpdb;
+			$alreadyThereID = $wpdb->get_var($wpdb->prepare("SELECT post_id from $wpdb->postmeta WHERE meta_key = '_original_imported_src' AND meta_value = %s", $file_url));
+
+			//get the src post ID one way or the other
+			$fileID = 0;
+			if (!$alreadyThereID) {
+				//if it isn't already there, import it
+				$fileID = self::import_media($file_url, $post, $import_host);
+			} else {
+				\WP_CLI::log( sprintf("Duplicate detected for %s - using href ID %d" , $file_url ,$alreadyThereID));
+				$fileID = $alreadyThereID;
+			}
+
+			//lookup the correct new path from the uploaded post id
+			$newURI = wp_get_attachment_url($fileID);
+
+			//rewrite a href
+			$anchor_element->setAttribute('href', $newURI);
+			//may need to re-generate thumbnail to specific size?
+		}
+
+		// clean up xpath processing and return re-written post text
+		// $text was wrapped in a <div> tag to avoid DOMDocument changing things, so remove it.
+		$text = trim( $dom->saveHTML( $dom->getElementsByTagName('div')->item( 0 ) ) );
+		$text = substr( $text, strlen( '<div>' ) );
+		$text = substr( $text, 0, -strlen( '</div>' ) );
+
+		return trim( $text );
+	}
 
 	/**
 	 * Imports a media file to as an attachment into the library from the given media path and host (defaults to current site host)
