@@ -194,6 +194,80 @@ class MediaFix extends \HM\Import\Fixers {
 		libxml_use_internal_errors( false );
 	}
 
+
+	/**
+	 * Iterate over every post, processing the img tags and re-writing the links in the post
+	 *
+	 *
+	 * [--import-host]
+	 * : If importing media from a host other than the current one, set it here (with protocol)
+	 *
+	 * @alias fix-all-img
+	 *
+	 */
+	public function fix_all_img($args_assoc) {
+		//disable thumbnail generation
+		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
+
+		//set the import host from flag, or default to the current host
+		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
+		if(!$import_host) {$import_host = self::default_host();}
+
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+		);
+
+		if ( ! current_user_can( 'import' ) ) {
+			\WP_CLI::error( "You must run this command with a --user specified (site admin or network admin)." );
+			exit;
+		}
+
+		\WP_CLI::log( PHP_EOL . 'WARNING: Not extensively tested with non-UTF8.' );
+		\WP_CLI::log( 'WARNING: DOMDocument is likely to make small changes to any HTML as part of its processing.' . PHP_EOL );
+		libxml_use_internal_errors( true );
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+			\WP_CLI::log( "\nSearching posts..." );
+
+			foreach ( $posts as $post ) {
+				$text = $post->post_content;
+				//scan the post text, import media, and get back the re-written post text
+				$new_text = self::process_imgs($text, $post, $import_host);
+
+				if ( $new_text === $text ) {
+					\WP_CLI::log( sprintf("\tPost %d unchanged", $post->ID) );
+					continue;
+				}
+
+				// Update post.
+				$result = wp_update_post( array(
+					'ID'           => $post->ID,
+					'post_content' => $new_text,
+				), true );
+
+				if ( is_wp_error( $result ) ) {
+					\WP_CLI::log( sprintf(
+						"\t[#%d] Failed rewriting post links: %s",
+						$post->ID,
+						$result->get_error_message()
+					) );
+				} else {
+					\WP_CLI::log( sprintf("\tPost %d updated.", $post->ID) );
+				}
+
+			} //end foreach
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		libxml_clear_errors();
+		libxml_use_internal_errors( false );
+	}
+
+
 	/**
 	 * Scan all img tags and report back the scr attribute of all internal img, with a status of whether or not they are valid urls for existing library media
 	 *
