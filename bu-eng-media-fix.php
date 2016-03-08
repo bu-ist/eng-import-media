@@ -20,12 +20,12 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
-	 * @alias process-one
+	 * @alias process-post-attachments
 	 *
 	 * @param array $args Positional args.
 	 * @param array $args Assocative args.
 	 */
-	public function process_one( $args, $args_assoc ) {
+	public function process_post_attachments( $args, $args_assoc ) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -62,6 +62,65 @@ class MediaFix extends \HM\Import\Fixers {
 			\WP_CLI::log( sprintf("\tPost %d updated.", $post->ID) );
 		}
 	}
+
+	/**
+	 * Import and relink imgs for a single post
+	 *
+	 * ## OPTIONS
+	 *
+	 * <command>
+ 	 * : The command to run.
+ 	 *
+ 	 * [<subcommand>]
+  	 * : The subcommand to run.
+  	 *
+	 * [--import-host]
+	 * : If importing media from a host other than the current one, set it here (with protocol)
+	 *
+	 * @alias process-post-imgs
+	 *
+	 * @param array $args Positional args.
+	 * @param array $args Assocative args.
+	 */
+	public function process_post_imgs( $args, $args_assoc ) {
+		//disable thumbnail generation
+		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
+
+		$post = get_post($args[0]);
+		if(!$post) {\WP_CLI::error("Post not found");}
+
+		//set the import host from flag, or default to the current host
+		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
+		if(!$import_host) {$import_host = self::default_host();}
+
+
+		$text = $post->post_content;
+
+		$new_text = self::process_imgs($text,$post,$import_host);
+		
+		if ( $new_text === $text ) {
+			\WP_CLI::log( sprintf("\tPost %d unchanged", $post->ID) );
+			return;
+		}
+
+		// Update post.
+		$result = wp_update_post( array(
+			'ID'           => $post->ID,
+			'post_content' => $new_text,
+		), true );
+
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::log( sprintf(
+				"\t[#%d] Failed rewriting post links: %s",
+				$post->ID,
+				$result->get_error_message()
+			) );
+		} else {
+			\WP_CLI::log( sprintf("\tPost %d updated.", $post->ID) );
+		}
+	}
+
+
 
 	/**
 	 * Iterate over every post, processing the attached media and re-writing the links in the post
@@ -279,6 +338,101 @@ class MediaFix extends \HM\Import\Fixers {
 
 		return trim( $text );
 	}
+
+	/**
+	 * Scans the post text for img to import.  For each img, it imports the media to the local library and rewrites the links
+	 * Also records the original media path in a postmeta record.
+	 *
+	 * @param string $text
+	 * @param post $post
+	 * @param string import_host
+	 * @return string Returns the rewritten post text
+	 */
+	protected static function process_imgs( $text, $post, $import_host ) {
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $text . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
+
+		$xpath = new \DOMXPath( $dom );
+		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
+
+			$img_url = $img_element->getAttribute('src');
+			
+			//test to see if the src matches the /files/ pattern, if not then skip it
+			if ( strpos($img_url, '/files/') === false ) {
+				\WP_CLI::log(sprintf( 'src %s from post id %d not a library link', $img_url, $post->ID ) );
+				continue;
+			}
+
+			//check if the img src is scaled
+			//if it isn't, work with the urls as they are
+			//if it is scaled, download the full rez file without the scaling tag
+			//but preserve it to use in the re-written link
+			preg_match("/-\d+[Xx]\d+\./", $img_url, $scaled_matches);
+
+			$capture_url = '';
+
+			if ($scaled_matches[0]) {
+				//rewrite the capture url to the full rez source to try downloading that
+				$capture_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
+			} else {
+				//capture from the given url
+				$capture_url = $img_url;
+			}
+
+			//check to see if the file is already in the library
+			$srcExists = self::get_attachment_from_src($capture_url);
+
+			if ($srcExists) {
+				\WP_CLI::log( sprintf("Scanned existing src, skipping %s", $capture_url) );
+				continue;
+			}
+
+			//check to see if the file was imported on a previous run
+			global $wpdb;
+			$alreadyThereID = $wpdb->get_var($wpdb->prepare("SELECT post_id from $wpdb->postmeta WHERE meta_key = '_original_imported_src' AND meta_value = %s", $capture_url));
+
+			//get the src post ID one way or the other
+			$srcID = 0;
+			if (!$alreadyThereID) {
+				//if it isn't already there, import it
+				$srcID = self::import_media($capture_url, $post, $import_host);
+			} else {
+				\WP_CLI::log( sprintf("Duplicate detected for %s - using src ID %d" , $capture_url ,$alreadyThereID));
+				$srcID = $alreadyThereID;
+			}
+
+			//lookup the correct new path from the uploaded post id
+			$newURI = wp_get_attachment_url($srcID);
+
+			//rewrite img src
+			if ($scaled_matches[0]) {
+				\WP_CLI::log( sprintf("Preserving scaled src, size %s", $scaled_matches[0]) );
+
+				$scaled_basename = basename($img_url);
+				$newDir = dirname($newURI);
+				$newURI = $newDir . "/" . $scaled_basename;
+				\WP_CLI::log( sprintf("rewrote img link to %s", $newURI) );
+			} else {
+				\WP_CLI::log( sprintf( "using unscaled img src %s in post %d", $img_url, $post->ID)); 
+			}
+			
+			$img_element->setAttribute('src', $newURI);
+			//may need to re-generate thumbnail to specific size?
+		}
+
+		// clean up xpath processing and return re-written post text
+		// $text was wrapped in a <div> tag to avoid DOMDocument changing things, so remove it.
+		$text = trim( $dom->saveHTML( $dom->getElementsByTagName('div')->item( 0 ) ) );
+		$text = substr( $text, strlen( '<div>' ) );
+		$text = substr( $text, 0, -strlen( '</div>' ) );
+
+		return trim( $text );
+	}
+
+
 
 	/**
 	 * Imports a media file to as an attachment into the library from the given media path and host (defaults to current site host)
