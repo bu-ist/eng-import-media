@@ -305,7 +305,42 @@ class MediaFix extends \HM\Import\Fixers {
 		$output->display();
 	}
 
+	/**
+	 * Scan all a tags linking to media library files and report back the href attribute, with a status of whether or not they are valid urls for existing library media
+	 *
+	 *
+	 * @alias a-library-report
+	 *
+	 */
+	public function a_library_report($args_assoc) {
+		//setup post paging loop
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+		);
 
+		//setup a table to return the data
+		$output = new \cli\Table();
+		$output->setHeaders(array('post_id','href','status'));
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+
+			foreach ($posts as $post) {
+				//run scanner
+				$these_rows = self::get_library_hrefs($post);
+				if ($these_rows) {
+					foreach ($these_rows as $row) {$output->addRow($row);}
+				}
+			}
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		//return data as a text table to the console, or a tab delimited text file if sent to a file
+		$output->display();
+	}
 
 	/**
 	 * Helper/internal functions.
@@ -540,7 +575,7 @@ class MediaFix extends \HM\Import\Fixers {
 	 * gets all of the img tags with relative src attributes from a post
 	 *
 	 * @param post $post
-	 * @return string Returns the rewritten post text
+	 * @return array Returns an array of rows representing each img found in the post text
 	 */
 	protected static function get_relative_imgs($post) {
 		//setup dom document
@@ -566,6 +601,35 @@ class MediaFix extends \HM\Import\Fixers {
 		return $rows;
 	}
 
+	/**
+	 * gets all of the a tags with the string /files/ in the href attribute, that aren't absolute links
+	 *
+	 * @param post $post
+	 * @return array Returns an array of rows representing each a found in the post text
+	 */
+	protected static function get_library_hrefs($post) {
+		//setup dom document
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $post->post_content . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
+
+		$xpath = new \DOMXPath( $dom );
+
+		$rows = array();
+
+		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		foreach ( $xpath->query( '//a[contains(@href,"/files/")][not(starts-with(@href,"http"))]' ) as $anchor_element ) {
+			$href_url = $anchor_element->getAttribute( 'href' );
+			
+			$url_exists = self::get_attachment_from_src($href_url);
+			if($url_exists) {$status = "exists";} else {$status = "missing";}
+
+			$row = array($post->ID, $href_url, $status);
+			$rows[] = $row;
+		}
+		return $rows;
+	}
 
 
 
