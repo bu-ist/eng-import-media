@@ -406,13 +406,19 @@ class MediaFix extends \HM\Import\Fixers {
 	 * @alias img-report
 	 *
 	 */
-	public function img_report($args_assoc) {
+	public function img_report($args, $args_assoc) {
+		
+		//check option flags
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
 		//setup post paging loop
 		$limit     = 50;
 		$post_args = array(
 			'offset'           => 0,
 			'posts_per_page'   => $limit,
 			'suppress_filters' => false,
+			'post_type'        => $post_type
 		);
 
 		//setup a table to return the data
