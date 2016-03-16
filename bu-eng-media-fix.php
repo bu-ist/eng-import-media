@@ -423,7 +423,7 @@ class MediaFix extends \HM\Import\Fixers {
 
 		//setup a table to return the data
 		$output = new \cli\Table();
-		$output->setHeaders(array('post_id','src_url','status'));
+		$output->setHeaders(array('post_id','src_url','scr_status','fullrez_status'));
 
 		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
 
@@ -785,12 +785,26 @@ class MediaFix extends \HM\Import\Fixers {
 
 		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
-			$img_url = $img_element->getAttribute( 'src' );
-			
-			$url_exists = self::get_attachment_from_src($img_url);
-			if($url_exists) {$status = "exists";} else {$status = "missing";}
+			$img_url = $img_element->getAttribute( 'src' );	
 
-			$row = array($post->ID, $img_url, $status);
+			//check if linked media is a sized down image attachment
+			$fullrez_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
+			if ($fullrez_url === $img_url) {
+				//link is to the fullrez source, so check for it in the library
+				$url_exists = self::get_attachment_from_src($img_url);
+				if ($url_exists) {$src_status = $fullrez_status = "exists";} else {$src_status = $fullrez_status = "missing";}
+			} else {
+				//link is to a sized down version: check for the fullrez url in the library, and the sized down in the corresponding postmeta
+				$fullrez_id = self::get_attachment_from_src($fullrez_url);
+				if ($fullrez_id) {
+					$fullrez_status = "exists";
+					$src_exists = self::exists_sized_attachment($fullrez_id, $img_url);
+					if ($src_exists) {$src_status = "exists";} else {$src_status = "missing";}
+				} else {$fullrez_status = $src_status = "missing";}
+
+			}
+
+			$row = array($post->ID, $img_url, $src_status, $fullrez_status);
 			$rows[] = $row;
 		}
 		return $rows;
@@ -826,7 +840,26 @@ class MediaFix extends \HM\Import\Fixers {
 		return $rows;
 	}
 
+	/**
+	 * Checks file attachment metadata to see if the specified downsampled version exists for the given attachment id
+	 *
+	 * @param $attach_id
+	 * @param $filepath
+	 * @return bool
+	 */
+	public static function exists_sized_attachment( $attach_id,$filepath ) {
+		$filename = basename($filepath);
 
+		$meta_arr = get_post_meta($attach_id, '_wp_attachment_metadata',true);
+		if (!$meta_arr['sizes']) {return false;}
+
+		$exists = false;
+		foreach ($meta_arr['sizes'] as $size) {
+			if ($size['file'] === $filename) {$exists = true;}
+		}
+
+		return $exists;
+	}
 
 	/**
 	 * Returns the current host with scheme as a default host for media imports
