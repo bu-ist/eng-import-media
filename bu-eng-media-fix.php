@@ -190,7 +190,7 @@ class MediaFix extends \HM\Import\Fixers {
 	 * @alias fix-all-attached
 	 *
 	 */
-	public function fix_all_attached($args_assoc) {
+	public function fix_all_attached($args, $args_assoc) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -198,11 +198,16 @@ class MediaFix extends \HM\Import\Fixers {
 		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
 		if(!$import_host) {$import_host = self::default_host();}
 
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
 		$limit     = 50;
 		$post_args = array(
 			'offset'           => 0,
 			'posts_per_page'   => $limit,
 			'suppress_filters' => false,
+			'post_type'        => $post_type
 		);
 
 		if ( ! current_user_can( 'import' ) ) {
