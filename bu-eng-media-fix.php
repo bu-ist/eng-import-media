@@ -407,6 +407,8 @@ class MediaFix extends \HM\Import\Fixers {
 	/**
 	 * Scan all img tags and report back the scr attribute of all internal img, with a status of whether or not they are valid urls for existing library media
 	 *
+	 * [--post-type]
+	 * : Specify a post type to scan (defaults to any)
 	 *
 	 * @alias img-report
 	 *
@@ -504,6 +506,10 @@ class MediaFix extends \HM\Import\Fixers {
 		);
 
 		$xpath = new \DOMXPath( $dom );
+		
+		//track whether a text re-write is necessary; in other words, don't let DOMDocument change the markup unless you have to
+		$flag_text_needs_rewrite = false;
+
 		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//a[@href]/img[not(starts-with(@src,"http"))]/..' ) as $anchor_element ) {
 			$href_url = $anchor_element->getAttribute( 'href' );
@@ -534,6 +540,8 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//check to see if the file was imported on a previous run
 			global $wpdb;
@@ -579,6 +587,12 @@ class MediaFix extends \HM\Import\Fixers {
 			}
 			$img_elem->setAttribute('src', $newThumbURI);
 			//may need to re-generate thumbnail to specific size?
+		}
+
+		//check here if any links were actually re-written.  if not, just return the original text, don't overwrite if you don't need to
+		if (!$flag_text_needs_rewrite) {
+			\WP_CLI::log( sprintf( "Links okay, no rewrite for post id %d", $post->ID ) );
+			return $text;
 		}
 
 		// clean up xpath processing and return re-written post text
