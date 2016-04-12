@@ -20,12 +20,12 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
-	 * @alias process-post-attachments
+	 * @alias fix-one-attachments
 	 *
 	 * @param array $args Positional args.
 	 * @param array $args Assocative args.
 	 */
-	public function process_post_attachments( $args, $args_assoc ) {
+	public function fix_one_attachments( $args, $args_assoc ) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -77,12 +77,12 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
-	 * @alias process-post-imgs
+	 * @alias fix-one-img
 	 *
 	 * @param array $args Positional args.
 	 * @param array $args Assocative args.
 	 */
-	public function process_post_imgs( $args, $args_assoc ) {
+	public function fix_one_img( $args, $args_assoc ) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -135,12 +135,12 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
-	 * @alias process-post-a-href
+	 * @alias fix-one-a-href
 	 *
 	 * @param array $args Positional args.
 	 * @param array $args Assocative args.
 	 */
-	public function process_post_a_href( $args, $args_assoc ) {
+	public function fix_one_a_href( $args, $args_assoc ) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -187,10 +187,10 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
-	 * @alias fix-all-attached
+	 * @alias fix-all-attachments
 	 *
 	 */
-	public function fix_all_attached($args, $args_assoc) {
+	public function fix_all_attachments($args, $args_assoc) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -410,10 +410,10 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--post-type]
 	 * : Specify a post type to scan (defaults to any)
 	 *
-	 * @alias img-report
+	 * @alias report-img
 	 *
 	 */
-	public function img_report($args, $args_assoc) {
+	public function report_img($args, $args_assoc) {
 		
 		//check option flags
 		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
@@ -453,10 +453,10 @@ class MediaFix extends \HM\Import\Fixers {
 	 * Scan all a tags linking to media library files and report back the href attribute, with a status of whether or not they are valid urls for existing library media
 	 *
 	 *
-	 * @alias a-library-report
+	 * @alias report-library-a
 	 *
 	 */
-	public function a_library_report($args_assoc) {
+	public function report_library_a($args_assoc) {
 		//setup post paging loop
 		$limit     = 50;
 		$post_args = array(
