@@ -738,6 +738,10 @@ class MediaFix extends \HM\Import\Fixers {
 		);
 
 		$xpath = new \DOMXPath( $dom );
+
+		//track whether a text re-write is necessary; in other words, don't let DOMDocument change the markup unless you have to
+		$flag_text_needs_rewrite = false;
+
 		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//a[contains(@href,"/files/")][not(starts-with(@href,"http"))]' ) as $anchor_element ) {
 
@@ -750,6 +754,9 @@ class MediaFix extends \HM\Import\Fixers {
 				\WP_CLI::log( sprintf("Scanned existing href, skipping %s", $file_url) );
 				continue;
 			}
+
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//check to see if the file was imported on a previous run
 			global $wpdb;
@@ -771,6 +778,12 @@ class MediaFix extends \HM\Import\Fixers {
 			//rewrite a href
 			$anchor_element->setAttribute('href', $newURI);
 			//may need to re-generate thumbnail to specific size?
+		}
+
+		//check here if any links were actually re-written.  if not, just return the original text, don't overwrite if you don't need to
+		if (!$flag_text_needs_rewrite) {
+			\WP_CLI::log( sprintf( "Links okay, no rewrite for post id %d", $post->ID ) );
+			return $text;
 		}
 
 		// clean up xpath processing and return re-written post text
