@@ -471,11 +471,13 @@ class MediaFix extends \HM\Import\Fixers {
 	/**
 	 * Scan all a tags linking to media library files and report back the href attribute, with a status of whether or not they are valid urls for existing library media
 	 *
+	 * [--post-type]
+	 * : Specify a post type to scan (defaults to any)
 	 *
 	 * @alias report-library-a
 	 *
 	 */
-	public function report_library_a($args_assoc) {
+	public function report_library_a($args, $args_assoc) {
 
 		//set the post type from flag, or default to any post type
 		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
