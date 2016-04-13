@@ -187,6 +187,9 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
+	 * [--post-type]
+	 * : Specify a post type to operate on.  Defaults to any
+	 *
 	 * @alias fix-all-attachments
 	 *
 	 */
@@ -276,11 +279,16 @@ class MediaFix extends \HM\Import\Fixers {
 		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
 		if(!$import_host) {$import_host = self::default_host();}
 
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
 		$limit     = 50;
 		$post_args = array(
 			'offset'           => 0,
 			'posts_per_page'   => $limit,
 			'suppress_filters' => false,
+			'post_type'        => $post_type
 		);
 
 		if ( ! current_user_can( 'import' ) ) {
@@ -348,11 +356,16 @@ class MediaFix extends \HM\Import\Fixers {
 		$import_host = \WP_CLI\Utils\get_flag_value( $args_assoc, 'import-host' );
 		if(!$import_host) {$import_host = self::default_host();}
 
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
 		$limit     = 50;
 		$post_args = array(
 			'offset'           => 0,
 			'posts_per_page'   => $limit,
 			'suppress_filters' => false,
+			'post_type'        => $post_type
 		);
 
 		if ( ! current_user_can( 'import' ) ) {
@@ -457,12 +470,18 @@ class MediaFix extends \HM\Import\Fixers {
 	 *
 	 */
 	public function report_library_a($args_assoc) {
+
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
 		//setup post paging loop
 		$limit     = 50;
 		$post_args = array(
 			'offset'           => 0,
 			'posts_per_page'   => $limit,
 			'suppress_filters' => false,
+			'post_type'        => $post_type
 		);
 
 		//setup a table to return the data
