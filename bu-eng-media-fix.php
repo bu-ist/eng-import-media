@@ -268,10 +268,13 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
+	 * [--post-type]
+	 * : Specify a post type to operate on.  Defaults to any
+	 *
 	 * @alias fix-all-img
 	 *
 	 */
-	public function fix_all_img($args_assoc) {
+	public function fix_all_img($args, $args_assoc) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
@@ -345,10 +348,13 @@ class MediaFix extends \HM\Import\Fixers {
 	 * [--import-host]
 	 * : If importing media from a host other than the current one, set it here (with protocol)
 	 *
+	 * [--post-type]
+	 * : Specify a post type to operate on.  Defaults to any
+	 *
 	 * @alias fix-all-a-href
 	 *
 	 */
-	public function fix_all_a_href($args_assoc) {
+	public function fix_all_a_href($args, $args_assoc) {
 		//disable thumbnail generation
 		add_filter( 'intermediate_image_sizes_advanced', '__return_false' );
 
