@@ -647,7 +647,7 @@ class MediaFix extends \HM\Import\Fixers {
 		);
 
 		$xpath = new \DOMXPath( $dom );
-		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		//scan the text for all img tags where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
 
 			$img_url = $img_element->getAttribute('src');
@@ -744,7 +744,7 @@ class MediaFix extends \HM\Import\Fixers {
 		//track whether a text re-write is necessary; in other words, don't let DOMDocument change the markup unless you have to
 		$flag_text_needs_rewrite = false;
 
-		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
+		//scan the text for all anchor tags containing library links
 		foreach ( $xpath->query( '//a[contains(@href,"/files/")][not(starts-with(@href,"http"))]' ) as $anchor_element ) {
 
 			$file_url = $anchor_element->getAttribute('href');
