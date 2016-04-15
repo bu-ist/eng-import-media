@@ -584,6 +584,12 @@ class MediaFix extends \HM\Import\Fixers {
 				$attchmentID = $alreadyThereID;
 			}
 
+			//check to see if the file was really imported, skip rewrites if not
+			if (!$attchmentID) {
+				\WP_CLI::warning( sprintf( "Unable to import from href %s in post %d, skipping rewrite", $href_url, $post->ID ) );
+				continue;
+			}
+
 			//rewrite href and img links
 			//first look up the correct new path from the attachment id
 			$newURI = wp_get_attachment_url($attchmentID);
@@ -696,6 +702,12 @@ class MediaFix extends \HM\Import\Fixers {
 				$srcID = $alreadyThereID;
 			}
 
+			//check to see if the file was really imported, skip rewrites if not
+			if (!$srcID) {
+				\WP_CLI::warning( sprintf( "Unable to import from img src %s in post %d, skipping rewrite", $img_url, $post->ID ) );
+				continue;
+			}
+
 			//lookup the correct new path from the uploaded post id
 			$newURI = wp_get_attachment_url($srcID);
 
@@ -772,6 +784,12 @@ class MediaFix extends \HM\Import\Fixers {
 			} else {
 				\WP_CLI::log( sprintf("Duplicate detected for %s - using href ID %d" , $file_url ,$alreadyThereID));
 				$fileID = $alreadyThereID;
+			}
+
+			//check to see if the file was really imported, skip rewrites if not
+			if (!$fileID) {
+				\WP_CLI::warning( sprintf( "Unable to import from href %s in post %d, skipping rewrite", $file_url, $post->ID ) );
+				continue;
 			}
 
 			//lookup the correct new path from the uploaded post id
