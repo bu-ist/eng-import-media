@@ -653,6 +653,10 @@ class MediaFix extends \HM\Import\Fixers {
 		);
 
 		$xpath = new \DOMXPath( $dom );
+
+		//track whether a text re-write is necessary; in other words, don't let DOMDocument change the markup unless you have to
+		$flag_text_needs_rewrite = false;
+
 		//scan the text for all img tags where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
 
@@ -663,6 +667,9 @@ class MediaFix extends \HM\Import\Fixers {
 				\WP_CLI::log(sprintf( 'src %s from post id %d not a library link', $img_url, $post->ID ) );
 				continue;
 			}
+
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//check if the img src is scaled
 			//if it isn't, work with the urls as they are
@@ -725,6 +732,12 @@ class MediaFix extends \HM\Import\Fixers {
 			
 			$img_element->setAttribute('src', $newURI);
 			//may need to re-generate thumbnail to specific size?
+		}
+
+		//check here if any links were actually re-written.  if not, just return the original text, don't overwrite if you don't need to
+		if (!$flag_text_needs_rewrite) {
+			\WP_CLI::log( sprintf( "Links okay, no rewrite for post id %d", $post->ID ) );
+			return $text;
 		}
 
 		// clean up xpath processing and return re-written post text
