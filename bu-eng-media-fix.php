@@ -567,9 +567,6 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
-			//since it is a library link and isn't already there, the link should be re-written
-			$flag_text_needs_rewrite = true;
-
 			//check to see if the file was imported on a previous run
 			global $wpdb;
 			$alreadyThereID = $wpdb->get_var($wpdb->prepare("SELECT post_id from $wpdb->postmeta WHERE meta_key = '_original_imported_src' AND meta_value = %s", $href_url));
@@ -589,6 +586,9 @@ class MediaFix extends \HM\Import\Fixers {
 				\WP_CLI::warning( sprintf( "Unable to import from href %s in post %d, skipping rewrite", $href_url, $post->ID ) );
 				continue;
 			}
+
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//rewrite href and img links
 			//first look up the correct new path from the attachment id
@@ -668,9 +668,6 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
-			//since it is a library link and isn't already there, the link should be re-written
-			$flag_text_needs_rewrite = true;
-
 			//check if the img src is scaled
 			//if it isn't, work with the urls as they are
 			//if it is scaled, download the full rez file without the scaling tag
@@ -714,6 +711,9 @@ class MediaFix extends \HM\Import\Fixers {
 				\WP_CLI::warning( sprintf( "Unable to import from img src %s in post %d, skipping rewrite", $img_url, $post->ID ) );
 				continue;
 			}
+
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//lookup the correct new path from the uploaded post id
 			$newURI = wp_get_attachment_url($srcID);
@@ -782,9 +782,6 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
-			//since it is a library link and isn't already there, the link should be re-written
-			$flag_text_needs_rewrite = true;
-
 			//check to see if the file was imported on a previous run
 			global $wpdb;
 			$alreadyThereID = $wpdb->get_var($wpdb->prepare("SELECT post_id from $wpdb->postmeta WHERE meta_key = '_original_imported_src' AND meta_value = %s", $file_url));
@@ -804,6 +801,9 @@ class MediaFix extends \HM\Import\Fixers {
 				\WP_CLI::warning( sprintf( "Unable to import from href %s in post %d, skipping rewrite", $file_url, $post->ID ) );
 				continue;
 			}
+
+			//since it is a library link and isn't already there, the link should be re-written
+			$flag_text_needs_rewrite = true;
 
 			//lookup the correct new path from the uploaded post id
 			$newURI = wp_get_attachment_url($fileID);
