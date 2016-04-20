@@ -848,6 +848,12 @@ class MediaFix extends \HM\Import\Fixers {
 		}
 
 		$importedID = trim($import_result->stdout);
+
+		if (!$importedID) {
+			\WP_CLI::warning( sprintf("Failed to import %s from post id %d", $media_path, $post->ID) );
+			return false;
+		}
+
 		\WP_CLI::success( sprintf("Imported from post_id %d file %s with attachment id %s", $post->ID, $media_path, $importedID) );
 
 		//keep the original path in a post meta for future reference
