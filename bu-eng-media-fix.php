@@ -178,6 +178,28 @@ class MediaFix extends \HM\Import\Fixers {
 		}
 	}
 
+	/**
+	 * Scans post text for scaled imgs and, if missing, generates the correct size for existing markup
+	 *
+	 * @alias fix-one-thumbnails
+	 *
+	 * @param array $args Positional args.
+	 * @param array $args Assocative args.
+	 */
+	public function fix_one_thumbnails( $args, $args_assoc ) {
+		$post = get_post($args[0]);
+		if(!$post) {\WP_CLI::error("Post not found");}
+
+		$text = $post->post->content;
+
+		$result = self::process_img_thumbs($post);
+
+		if ($result) {
+			\WP_CLI::log( sprintf( "Post %d processed", $post->ID ) );
+		} else {
+			\WP_CLI::warning( sprintf( "Error on post %d", $post->ID ) );
+		}
+	}
 
 
 	/**
@@ -810,7 +832,7 @@ class MediaFix extends \HM\Import\Fixers {
 
 			//rewrite a href
 			$anchor_element->setAttribute('href', $newURI);
-			//may need to re-generate thumbnail to specific size?
+			//may need to re-generate thumbnail to specific size - use fix-thumbnails command in a separate pass
 		}
 
 		//check here if any links were actually re-written.  if not, just return the original text, don't overwrite if you don't need to
@@ -826,6 +848,86 @@ class MediaFix extends \HM\Import\Fixers {
 		$text = substr( $text, 0, -strlen( '</div>' ) );
 
 		return trim( $text );
+	}
+
+	/**
+	 * Scans the post text for scaled images and checks for an image at the correct size.
+	 * If the scaled down version is missing, a new one is created
+	 *
+	 * @param post $post
+	 * @return string If successful, return the attachment post ID.  Otherwise, return false
+	 */
+	protected static function process_img_thumbs($post) {
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $post->post_content . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
+
+		$xpath = new \DOMXPath( $dom );
+
+		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
+			$img_url = $img_element->getAttribute('src');
+			
+			//test to see if the src matches the /files/ pattern, if not then skip it
+			if ( strpos($img_url, '/files/') === false ) {
+				\WP_CLI::log(sprintf( 'src %s from post id %d not a library link', $img_url, $post->ID ) );
+				continue;
+			}
+
+			//get src parts
+			preg_match("/-(\d+)[Xx](\d+)\./", $img_url, $scaled_matches);
+
+			$width  = $scaled_matches[1];
+			$height = $scaled_matches[2];
+
+			$fullrez_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
+			//skip if src is unscaled
+			if ($fullrez_url === $img_url) {continue;}
+
+			$fullrez = self::get_attachment_from_src($fullrez_url);
+
+			if (!$fullrez) {
+				\WP_CLI::warning( sprintf("On post id %d - Full resolution source not found for url %s",$post->ID,$fullrez_url) );
+				continue;
+			}
+
+			//check for existing scaled image
+			$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
+			if ($src_exists) {
+				\WP_CLI::log( sprintf("Post ID %d - Scaled image exists for src %s",$post->ID,$img_url) );
+				continue;
+			}
+
+			//thumbnail size needs to be created
+			$fullrez_path = get_attached_file($fullrez->ID);
+
+			$newSize = wp_get_image_editor($fullrez_path);
+			$newSize->resize($width,$height,false);
+			$newFile = $newSize->save();
+			
+			if ($newFile) {
+				\WP_CLI::success( sprintf("Post ID %d - new resized file for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
+			} else {
+				\WP_CLI::warning( sprintf("Post ID %d - resize failed for attachment id %d",$post->ID,$fullrez->ID) );
+				//set a flag to report back to the command?
+				continue;
+			}
+			
+
+			//add the new size to the attachment metadata
+			$meta_arr = get_post_meta($fullrez->ID, '_wp_attachment_metadata',true);
+
+			//newFile metadata is the same as the attachement metadata, except for the 'path' attribute, so remove it
+			unset($newFile['path']);
+			
+			$meta_arr['sizes']['custom-import'] = $newFile;
+
+			$update = wp_update_attachment_metadata($fullrez->ID,$meta_arr);
+
+			if (!$update) { \WP_CLI::warning( sprintf("Metadata update failed for attachment id %d on post id %d",$fullrez->ID,$post->ID) ); } 
+		}
+
+		return true;
 	}
 
 	/**
