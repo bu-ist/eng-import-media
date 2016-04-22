@@ -443,6 +443,46 @@ class MediaFix extends \HM\Import\Fixers {
 		libxml_use_internal_errors( false );
 	}
 
+	/**
+	 * Iterate over every post, scanning post text for scaled imgs and, if missing, generating the correct size for existing markup
+	 *
+	 * [--post-type]
+	 * : Specify a post type to operate on.  Defaults to any
+	 *
+	 * @alias fix-all-thumbnails
+	 *
+	 */
+	public function fix_all_thumbnails($args, $args_assoc) {
+
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+			'post_type'        => $post_type
+		);
+	
+		libxml_use_internal_errors( true );
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+			\WP_CLI::log( "\nSearching posts..." );
+
+			foreach ( $posts as $post ) {
+				$text = $post->post_content;
+				//scan post content
+				$result = self::process_img_thumbs($post);
+			} //end foreach
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		libxml_clear_errors();
+		libxml_use_internal_errors( false );
+	}
 
 
 	/**
@@ -894,11 +934,12 @@ class MediaFix extends \HM\Import\Fixers {
 			//check for existing scaled image
 			$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
 			if ($src_exists) {
-				\WP_CLI::log( sprintf("Post ID %d - Scaled image exists for src %s",$post->ID,$img_url) );
+				\WP_CLI::log( sprintf("Post ID %d - Scaled image exists for src %s attachment id %d",$post->ID,$img_url,$fullrez->ID) );
 				continue;
 			}
 
 			//thumbnail size needs to be created
+			\WP_CLI::log( sprintf("Post ID %d - Will make new scaled version for attachment id %d",$post->ID,$fullrez->ID) );
 			$fullrez_path = get_attached_file($fullrez->ID);
 
 			$newSize = wp_get_image_editor($fullrez_path);
