@@ -938,6 +938,13 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
+			//check if thumbnail already exists in the filesystem
+			if (self::img_file_exists($img_url)) {
+				\WP_CLI::log( sprintf("Post ID %d - file exists for src %s attachment id %d",$post->ID,$img_url,$fullrez->ID));
+				//should add post-meta for file?
+				continue;
+			}
+
 			//thumbnail size needs to be created
 			\WP_CLI::log( sprintf("Post ID %d - Will make new scaled version for attachment id %d",$post->ID,$fullrez->ID) );
 			$fullrez_path = get_attached_file($fullrez->ID);
@@ -951,6 +958,7 @@ class MediaFix extends \HM\Import\Fixers {
 					\WP_CLI::success( sprintf("Post ID %d - new resized file for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
 				} else {
 					\WP_CLI::warning( sprintf("Post ID %d - size mismatch for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
+					\WP_CLI::warning( sprintf("width = %d height= %d for file %s",$width,$height,$newFile['file']) );
 				}
 				
 			} else {
@@ -1102,6 +1110,19 @@ class MediaFix extends \HM\Import\Fixers {
 		}
 
 		return $exists;
+	}
+
+	/**
+	 * Checks to see if a file already exists in the uploads directory for an img src
+	 *
+	 * @param $src
+	 * @return bool
+	 */
+	public static function img_file_exists($src) {
+		$uploads= wp_upload_dir(false);
+		$path_parts = explode('/',$src);
+		$partial_path = implode('/', array_slice($path_parts,3));
+		return file_exists($uploads['basedir'] . '/' . $partial_path);
 	}
 
 	/**
