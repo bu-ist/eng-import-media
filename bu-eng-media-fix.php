@@ -511,7 +511,7 @@ class MediaFix extends \HM\Import\Fixers {
 
 		//setup a table to return the data
 		$output = new \cli\Table();
-		$output->setHeaders(array('post_id','src_url','scr_status','fullrez_status'));
+		$output->setHeaders(array('post_id','src_url','scr_status','fullrez_status','fullrez_id'));
 
 		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
 
@@ -1037,6 +1037,7 @@ class MediaFix extends \HM\Import\Fixers {
 		//scan the text for all img tags wrapped in an anchor tag where the src of the img doesn't start with http
 		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
 			$img_url = $img_element->getAttribute( 'src' );	
+			$fullrez_id = "";
 
 			//check if linked media is a sized down image attachment
 			$fullrez_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
@@ -1049,13 +1050,14 @@ class MediaFix extends \HM\Import\Fixers {
 				$fullrez = self::get_attachment_from_src($fullrez_url);
 				if ($fullrez) {
 					$fullrez_status = "exists";
+					$fullrez_id = $fullrez->ID;
 					$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
 					if ($src_exists) {$src_status = "exists";} else {$src_status = "missing";}
 				} else {$fullrez_status = $src_status = "missing";}
 
 			}
 
-			$row = array($post->ID, $img_url, $src_status, $fullrez_status);
+			$row = array($post->ID, $img_url, $src_status, $fullrez_status, $fullrez_id);
 			$rows[] = $row;
 		}
 		return $rows;
