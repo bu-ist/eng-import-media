@@ -1011,7 +1011,7 @@ class MediaFix extends \HM\Import\Fixers {
 	 * @param post $post
 	 * @return array Returns an array of rows representing each img found in the post text
 	 */
-	protected static function get_relative_imgs($post) {
+	static function get_relative_imgs($post) {
 		//setup dom document
 		$dom = new \DOMDocument();
 		$dom->loadHTML(
@@ -1034,10 +1034,10 @@ class MediaFix extends \HM\Import\Fixers {
 				if ($url_exists) {$src_status = $fullrez_status = "exists";} else {$src_status = $fullrez_status = "missing";}
 			} else {
 				//link is to a sized down version: check for the fullrez url in the library, and the sized down in the corresponding postmeta
-				$fullrez_id = self::get_attachment_from_src($fullrez_url);
-				if ($fullrez_id) {
+				$fullrez = self::get_attachment_from_src($fullrez_url);
+				if ($fullrez) {
 					$fullrez_status = "exists";
-					$src_exists = self::exists_sized_attachment($fullrez_id, $img_url);
+					$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
 					if ($src_exists) {$src_status = "exists";} else {$src_status = "missing";}
 				} else {$fullrez_status = $src_status = "missing";}
 
