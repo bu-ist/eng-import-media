@@ -931,7 +931,7 @@ class MediaFix extends \HM\Import\Fixers {
 				continue;
 			}
 
-			//check for existing scaled image
+			//check for existing scaled image in the post meta
 			$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
 			if ($src_exists) {
 				\WP_CLI::log( sprintf("Post ID %d - Scaled image exists for src %s attachment id %d",$post->ID,$img_url,$fullrez->ID) );
@@ -947,13 +947,17 @@ class MediaFix extends \HM\Import\Fixers {
 			$newFile = $newSize->save();
 			
 			if ($newFile) {
-				\WP_CLI::success( sprintf("Post ID %d - new resized file for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
+				if ($newFile['width'] === $width && $newFile['height'] === $height) {
+					\WP_CLI::success( sprintf("Post ID %d - new resized file for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
+				} else {
+					\WP_CLI::warning( sprintf("Post ID %d - size mismatch for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
+				}
+				
 			} else {
 				\WP_CLI::warning( sprintf("Post ID %d - resize failed for attachment id %d",$post->ID,$fullrez->ID) );
 				//set a flag to report back to the command?
 				continue;
 			}
-			
 
 			//add the new size to the attachment metadata
 			$meta_arr = get_post_meta($fullrez->ID, '_wp_attachment_metadata',true);
