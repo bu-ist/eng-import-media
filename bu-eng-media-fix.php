@@ -954,7 +954,7 @@ class MediaFix extends \HM\Import\Fixers {
 			$newFile = $newSize->save();
 			
 			if ($newFile) {
-				if ($newFile['width'] === $width && $newFile['height'] === $height) {
+				if ($newFile['width'] == $width && $newFile['height'] == $height) {
 					\WP_CLI::success( sprintf("Post ID %d - new resized file for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
 				} else {
 					\WP_CLI::warning( sprintf("Post ID %d - size mismatch for attachment id %d created named %s",$post->ID,$fullrez->ID,$newFile['file']) );
