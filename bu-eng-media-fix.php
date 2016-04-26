@@ -770,8 +770,15 @@ class MediaFix extends \HM\Import\Fixers {
 
 			//check to see if the file was really imported, skip rewrites if not
 			if (!$srcID) {
-				\WP_CLI::warning( sprintf( "Unable to import from img src %s in post %d, skipping rewrite", $img_url, $post->ID ) );
-				continue;
+				//try to import the full img_url with dimensions?
+				$srcID = self::import_media($img_url, $post, $import_host);
+				if ($srcID) {
+					\WP_CLI::success( sprintf( "Import scaled src from img src %s in post %d - no unscaled src available", $img_url, $post->ID ) );
+				} else {
+					\WP_CLI::warning( sprintf( "Unable to import from img src %s in post %d, skipping rewrite", $img_url, $post->ID ) );
+					continue;
+				}
+				
 			}
 
 			//since it is a library link and isn't already there, the link should be re-written
@@ -1053,7 +1060,16 @@ class MediaFix extends \HM\Import\Fixers {
 					$fullrez_id = $fullrez->ID;
 					$src_exists = self::exists_sized_attachment($fullrez->ID, $img_url);
 					if ($src_exists) {$src_status = "exists";} else {$src_status = "missing";}
-				} else {$fullrez_status = $src_status = "missing";}
+				} else {
+					//might be just a scaled version, check if sized file exists
+					if (self::img_file_exists($img_url)) {
+						$fullrez_status = $src_status = "exists";
+					} else {
+						//looks like it's just not there
+						$fullrez_status = $src_status = "missing";
+					}
+					
+				}
 
 			}
 
