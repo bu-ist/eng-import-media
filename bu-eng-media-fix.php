@@ -192,6 +192,8 @@ class MediaFix extends \HM\Import\Fixers {
 
 		$text = $post->post->content;
 
+		\WP_CLI::log(  );
+
 		$result = self::process_img_thumbs($post);
 
 		if ($result) {
@@ -200,6 +202,30 @@ class MediaFix extends \HM\Import\Fixers {
 			\WP_CLI::warning( sprintf( "Error on post %d", $post->ID ) );
 		}
 	}
+
+	/**
+	 * Scans post text Media Library items with an alt tag and checks for that value in the post-meta
+	 *
+	 * @alias fix-one-alt
+	 *
+	 * @param array $args Positional args.
+	 * @param array $args Assocative args.
+	 */
+	public function fix_one_alt( $args, $args_assoc ) {
+		$post = get_post($args[0]);
+		if(!$post) {\WP_CLI::error("Post not found");}
+
+		$text = $post->post->content;
+
+		$result = self::process_img_alt($post);
+
+		if ($result) {
+			\WP_CLI::log( sprintf( "Post %d processed", $post->ID ) );
+		} else {
+			\WP_CLI::warning( sprintf( "Error on post %d", $post->ID ) );
+		}
+	}
+
 
 
 	/**
@@ -989,6 +1015,61 @@ class MediaFix extends \HM\Import\Fixers {
 
 		return true;
 	}
+
+	/**
+	 * Scans the post text for scaled images and checks for an image at the correct size.
+	 * If the scaled down version is missing, a new one is created
+	 *
+	 * @param post $post
+	 * @return bool 
+	 */
+	protected static function process_img_alt($post) {
+		$dom = new \DOMDocument();
+		$dom->loadHTML(
+			mb_convert_encoding( '<div>' . $post->post_content . '</div>', 'HTML-ENTITIES', 'UTF-8' )
+		);
+
+		$xpath = new \DOMXPath( $dom );
+
+		foreach ( $xpath->query( '//img[not(starts-with(@src,"http"))]' ) as $img_element ) {
+			$img_url = $img_element->getAttribute('src');
+			$alt = $img_element->getAttribute('alt');
+			
+			//test to see if the src matches the /files/ pattern, if not then skip it
+			if ( strpos($img_url, '/files/') === false ) {
+				\WP_CLI::log(sprintf( 'src %s from post id %d not a library link', $img_url, $post->ID ) );
+				continue;
+			}
+
+			$fullrez_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
+
+			$fullrez = self::get_attachment_from_src($fullrez_url);
+
+			$meta_alt = get_post_meta($fullrez->ID, '_wp_attachment_image_alt',true);
+
+			if (!$alt) {
+				\WP_CLI::warning(sprintf( 'alt empty for attach id %d on post id %s', $fullrez->ID, $post->ID ) );
+				continue;
+			}
+
+			if ($meta_alt == $alt) {
+				\WP_CLI::log(sprintf( 'alt in markup and postmeta match for attach id %d in post id %d', $fullrez->ID, $post->ID ) );
+				continue;
+			}
+
+			//write alt from markup into the correct postmeta
+			$result = update_post_meta($fullrez->ID,'_wp_attachment_image_alt',$alt);
+
+			if ($result) {
+				\WP_CLI::success(sprintf( 'postmeta alt added for attach id %d from post id %s', $fullrez->ID, $post->ID ) );
+			} else {
+				\WP_CLI::warning(sprintf( 'problem writing postmeta alt for attach id %d from post id %s', $fullrez->ID, $meta_alt ) );
+			}
+		}
+		return true;
+	}
+
+
 
 	/**
 	 * Imports a media file to as an attachment into the library from the given media path and host (defaults to current site host)
