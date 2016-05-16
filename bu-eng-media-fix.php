@@ -192,8 +192,6 @@ class MediaFix extends \HM\Import\Fixers {
 
 		$text = $post->post->content;
 
-		\WP_CLI::log(  );
-
 		$result = self::process_img_thumbs($post);
 
 		if ($result) {
