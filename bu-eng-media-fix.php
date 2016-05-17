@@ -508,6 +508,49 @@ class MediaFix extends \HM\Import\Fixers {
 		libxml_use_internal_errors( false );
 	}
 
+	/**
+	 * Iterate over every post, scanning post text for scaled imgs and, if missing, generating the correct size for existing markup
+	 *
+	 * [--post-type]
+	 * : Specify a post type to operate on.  Defaults to any
+	 *
+	 * @alias fix-all-alt
+	 *
+	 */
+	public function fix_all_alt($args, $args_assoc) {
+
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'any';}
+
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+			'post_type'        => $post_type
+		);
+	
+		libxml_use_internal_errors( true );
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+			\WP_CLI::log( "\nSearching posts..." );
+
+			foreach ( $posts as $post ) {
+				\WP_CLI::log(sprintf( '- Processing post id %d', $post->ID ) );
+				
+				//process post content
+				$result = self::process_img_alt($post);
+			} //end foreach
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		libxml_clear_errors();
+		libxml_use_internal_errors( false );
+	}
+
+
 
 	/**
 	 * Scan all img tags and report back the scr attribute of all internal img, with a status of whether or not they are valid urls for existing library media
@@ -1042,6 +1085,10 @@ class MediaFix extends \HM\Import\Fixers {
 			$fullrez_url = preg_replace("/-\d+[Xx]\d+\./", '.', $img_url);
 
 			$fullrez = self::get_attachment_from_src($fullrez_url);
+			if (!$fullrez) {
+				\WP_CLI::log(sprintf( 'Image not found in library: %s in post %d ', $img_url, $post->ID ) );
+				continue;
+			}
 
 			$meta_alt = get_post_meta($fullrez->ID, '_wp_attachment_image_alt',true);
 
