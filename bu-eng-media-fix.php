@@ -683,7 +683,7 @@ class MediaFix extends \WP_CLI_Command {
 
 		//setup a table to return the data
 		$output = new \cli\Table();
-		$output->setHeaders( array( 'post_id','dept','status' ) );
+		$output->setHeaders( array( 'post_id', 'orig_path','dept','status' ) );
 
 		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
 
@@ -697,7 +697,6 @@ class MediaFix extends \WP_CLI_Command {
 
 					// Fix ooops
 					if ($dept_slug === 'mse-colo') { $dept_slug = 'mse'; }
-					if ($dept_slug === 'eng-staging6') { $dept_slug = 'mse'; }
 
 					// Check for existing department term
 					$exists = has_term( $dept_slug, 'department', $post->ID );
@@ -706,7 +705,7 @@ class MediaFix extends \WP_CLI_Command {
 					if ( $update && ! $exists ) {
 						$update_result = wp_set_object_terms( $post->ID, $dept_slug, 'department', true );
 						if ( $update_result ) {
-							\WP_CLI::success( sprintf( 'Updated %d with dept %s', $post->ID, $dept_slug ) );
+							\WP_CLI::success( sprintf( 'Updated %d with dept %s for key %s', $post->ID, $dept_slug, $orig_path ) );
 							$exists = true;
 						} else {
 							\WP_CLI::error( sprintf( 'Update Failed on %d with dept %s', $post->ID, $dept_slug ) );
@@ -715,7 +714,7 @@ class MediaFix extends \WP_CLI_Command {
 
 					$status = ( $exists ? 'set' : 'unset' );
 
-					$output->addRow( array( $post->ID, $dept_slug, $status ) ); 
+					$output->addRow( array( $post->ID, $orig_path, $dept_slug, $status ) ); 
 				}
 			}
 
