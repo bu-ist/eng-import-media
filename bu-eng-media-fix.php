@@ -657,6 +657,64 @@ class MediaFix extends \WP_CLI_Command {
 	}
 
 	/**
+	 * Scan for url sources from imports
+	 *
+	 * [--post-type]
+	 * : Specify a post type to scan (defaults to any)
+	 *
+	 * @alias report-import-dept
+	 *
+	 */
+
+	public function report_import_dept($args, $args_assoc) {
+
+		//set the post type from flag, or default to any post type
+		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
+		if (!$post_type) {$post_type = 'attachment';}
+
+		//setup post paging loop
+		$limit     = 50;
+		$post_args = array(
+			'offset'           => 0,
+			'posts_per_page'   => $limit,
+			'suppress_filters' => false,
+			'post_type'        => $post_type
+		);
+
+		//setup a table to return the data
+		$output = new \cli\Table();
+		$output->setHeaders( array( 'post_id','dept','status' ) );
+
+		while ( ( $posts = get_posts( $post_args ) ) !== array() ) {
+
+			foreach ($posts as $post) {
+				// Get post_meta for attachment, looking for '_original_imported_src'
+				$orig_path = get_post_meta( $post->ID, '_original_imported_src', true );
+
+				if ( $orig_path ) {
+					$parts = explode( '/', $orig_path );
+					$dept_slug = $parts[1];
+
+					// Fix ooops
+					if ($dept_slug === 'mse-colo') { $dept_slug = 'mse'; }
+					if ($dept_slug === 'eng-staging6') { $dept_slug = 'mse'; }
+
+					// Check for existing department term
+					$status = ( has_term( $dept_slug, 'department', $post->ID ) ? 'set' : 'unset' );
+
+					$output->addRow( array( $post->ID, $dept_slug, $status ) ); 
+				}
+			}
+
+			$post_args['offset'] += $limit;  // Keep the loop loopin'.
+		} //endwhile
+
+		//return data as a text table to the console, or a tab delimited text file if sent to a file
+		$output->display();
+	}
+
+
+	/**
 	 * Helper/internal functions.
 	 */
 
