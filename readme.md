@@ -62,3 +62,13 @@ fix-one-a-href
 This command scans for scaled library items that aren't already rendered at the correct size, and creates the correct size to match the specified img src.
 
 `wp mediafix fix-all-thumbnails`
+
+### Categorize
+
+This command can use the hidden post_meta value containing the source url of attachments to assign a taxonomy term.  Use the basic command to scan for attachments with the correct post_meta key:
+
+`wp mediafix report-import-dept`
+
+Add the `update` subcommand to actually assign the detected terms.
+
+`wp mediafix report-import-dept update`
