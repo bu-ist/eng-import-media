@@ -1,10 +1,24 @@
 <?php
-namespace BU\Media;
-//only depending on the hm-importer-fixers for get_attachment_from_src()
-require_once dirname( __FILE__ ) . "/hm-import-fixers.php";
+
+namespace {
+	// Fake for unit tests.
+	if ( ! class_exists( 'WP_CLI_Command' ) ) {
+		class WP_CLI_Command {}
+	}
+}
 
 
-class MediaFix extends \HM\Import\Fixers {
+namespace BU\Migrate {
+/**
+ * Plugin Name: ENG Mediafix
+ * Description: Collection of WP-CLI commands to work with linked media library files
+ * Author: jaydub
+ * License: GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Version: 0.1
+ */
+
+class MediaFix extends \WP_CLI_Command {
 
 	/**
 	 * Import and relink media attachments for a single post
@@ -1211,7 +1225,7 @@ class MediaFix extends \HM\Import\Fixers {
 	 * @param post $post
 	 * @return array Returns an array of rows representing each a found in the post text
 	 */
-	protected static function get_library_hrefs($post) {
+	public static function get_library_hrefs($post) {
 		//setup dom document
 		$dom = new \DOMDocument();
 		$dom->loadHTML(
@@ -1270,6 +1284,28 @@ class MediaFix extends \HM\Import\Fixers {
 	}
 
 	/**
+	 * Attempts to get an attachment from it's source url
+	 *
+	 * @param $src
+	 * @return array|bool|null|\WP_Post
+	 */
+	protected static function get_attachment_from_src( $src ) {
+
+		global $wpdb;
+
+		$split = explode( '/', $src );
+		$path  = implode( '/', array_slice( $split, -3 ) );
+
+		$post_id = $wpdb->get_var( $wpdb->prepare( "SELECT post_id from $wpdb->postmeta WHERE meta_key = '_wp_attached_file' AND meta_value = %s", $path ) );
+
+		if ( $post_id ) {
+			return get_post( $post_id );
+		}
+
+		return false;
+	}
+
+	/**
 	 * Returns the current host with scheme as a default host for media imports
 	 *
 	 * @return string
@@ -1283,3 +1319,4 @@ class MediaFix extends \HM\Import\Fixers {
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	\WP_CLI::add_command( 'mediafix', __NAMESPACE__ . '\\MediaFix' );
 }
+} // Namespace BU\Migrate
