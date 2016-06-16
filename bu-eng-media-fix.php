@@ -659,14 +659,14 @@ class MediaFix extends \WP_CLI_Command {
 	/**
 	 * Scan for url sources from imports
 	 *
-	 * [--post-type]
-	 * : Specify a post type to scan (defaults to any)
 	 *
 	 * @alias report-import-dept
 	 *
 	 */
 
 	public function report_import_dept($args, $args_assoc) {
+		$update = false;
+		if ( $args[0] === 'update' ) { $update = true; }
 
 		//set the post type from flag, or default to any post type
 		$post_type = \WP_CLI\Utils\get_flag_value( $args_assoc, 'post-type' );
@@ -700,7 +700,20 @@ class MediaFix extends \WP_CLI_Command {
 					if ($dept_slug === 'eng-staging6') { $dept_slug = 'mse'; }
 
 					// Check for existing department term
-					$status = ( has_term( $dept_slug, 'department', $post->ID ) ? 'set' : 'unset' );
+					$exists = has_term( $dept_slug, 'department', $post->ID );
+
+					// If the update flag was set, go ahead and add the department term
+					if ( $update && ! $exists ) {
+						$update_result = wp_set_object_terms( $post->ID, $dept_slug, 'department', true );
+						if ( $update_result ) {
+							\WP_CLI::success( sprintf( 'Updated %d with dept %s', $post->ID, $dept_slug ) );
+							$exists = true;
+						} else {
+							\WP_CLI::error( sprintf( 'Update Failed on %d with dept %s', $post->ID, $dept_slug ) );
+						}
+					}
+
+					$status = ( $exists ? 'set' : 'unset' );
 
 					$output->addRow( array( $post->ID, $dept_slug, $status ) ); 
 				}
